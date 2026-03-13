@@ -9,6 +9,8 @@
   cargo,
   rustc,
   cmake,
+  jq,
+  makeWrapper,
   version ? "1.0.0-rc.5",
 }:
 stdenv.mkDerivation (finalAttrs: {
@@ -49,6 +51,8 @@ stdenv.mkDerivation (finalAttrs: {
     cargo
     rustc
     cmake
+    jq
+    makeWrapper
   ];
 
   buildPhase = ''
@@ -81,6 +85,20 @@ stdenv.mkDerivation (finalAttrs: {
     mkdir -p "$nodeModules/@rolldown/pluginutils"
     cp packages/pluginutils/package.json "$nodeModules/@rolldown/pluginutils/"
     [[ -d packages/pluginutils/dist ]] && cp -r packages/pluginutils/dist "$nodeModules/@rolldown/pluginutils/"
+
+    mkdir -p $out/bin
+
+    # Dynamically extract the binary path from package.json to avoid hardcoding
+    local binPath
+    binPath=$(jq -r '.bin.rolldown // .bin // empty' packages/rolldown/package.json)
+
+    if [ -n "$binPath" ]; then
+      makeWrapper ${nodejs_22}/bin/node $out/bin/rolldown \
+        --add-flags "$outPath/$binPath"
+    else
+      echo "Error: Could not determine bin path from package.json"
+      exit 1
+    fi
 
     runHook postInstall
   '';
